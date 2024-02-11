@@ -475,10 +475,28 @@ Begin
                                                      Else Exclude(Flags.s,_OF);
  If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
                                         Else Exclude(Flags.s,AF);
- SetZFB(R);
- SetSFB(R);
- SetPF(R);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
  Source:=Byte(R);
+End;
+
+Function S86AdcByteF(Source,Dest:Byte):Byte;
+Var
+ R:Integer;
+Begin
+ R:=Dest+Source;
+ If(CF in Flags.s)Then Inc(R);
+ If(R and $FF00<>0)Then Include(Flags.s,CF)
+                   Else Exclude(Flags.s,CF);
+ If(((dest xor source) and (dest xor R)) and $80)<>0 Then Include(Flags.s,_OF)
+                                                     Else Exclude(Flags.s,_OF);
+ If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
+ S86AdcByteF:=Byte(R);
 End;
 
 Procedure S86AdcWord(Var Source:Word;Dest:Word);
@@ -493,10 +511,28 @@ Begin
                                                        Else Exclude(Flags.s,_OF);
  If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
                                         Else Exclude(Flags.s,AF);
- SetZFW(R);
- SetSFW(R);
- SetPF(R);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
  Source:=Word(R);
+End;
+
+Function S86AdcWordF(Source,Dest:Word):Word;
+Var
+ R:LongInt;
+Begin
+ R:=Dest+Source;
+ If(CF in Flags.s)Then Inc(R);
+ If(R and $FFFF0000<>0)Then Include(Flags.s,CF)
+                       Else Exclude(Flags.s,CF);
+ If(((dest xor source) and (dest xor R)) and $8000)<>0 Then Include(Flags.s,_OF)
+                                                       Else Exclude(Flags.s,_OF);
+ If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
+ S86AdcWordF:=Word(R);
 End;
 
 Procedure S86AddByte(Var Source:Byte;Dest:Byte);
@@ -510,10 +546,27 @@ Begin
                                                      Else Exclude(Flags.s,_OF);
  If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
                                         Else Exclude(Flags.s,AF);
- SetZFB(R);
- SetSFB(R);
- SetPF(R);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
  Source:=Byte(R);
+End;
+
+Function S86AddByteF(Source,Dest:Byte):Byte;
+Var
+ R:Integer;
+Begin
+ R:=Dest+Source;
+ If(R and $FF00<>0)Then Include(Flags.s,CF)
+                   Else Exclude(Flags.s,CF);
+ If(((dest xor source) and (dest xor R)) and $80)<>0 Then Include(Flags.s,_OF)
+                                                     Else Exclude(Flags.s,_OF);
+ If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
+ S86AddByteF:=Byte(R);
 End;
 
 Procedure S86AddWord(Var Source:Word;Dest:Word);
@@ -527,10 +580,137 @@ Begin
                                                        Else Exclude(Flags.s,_OF);
  If((dest xor source xor R) and $10) <> 0 Then Include(Flags.s,AF)
                                           Else Exclude(Flags.s,AF);
- SetZFW(R);
- SetSFW(R);
- SetPF(R);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
  Source:=Word(R);
+End;
+
+Function S86AddWordF(Source,Dest:Word):Word;
+Var
+ R:LongInt;
+Begin
+ R:=Dest+Source;
+ If(R and $FFFF0000<>0)Then Include(Flags.s,CF)
+                       Else Exclude(Flags.s,CF);
+ If(((dest xor source) and (dest xor R)) and $8000)<>0 Then Include(Flags.s,_OF)
+                                                       Else Exclude(Flags.s,_OF);
+ If((dest xor source xor R) and $10) <> 0 Then Include(Flags.s,AF)
+                                          Else Exclude(Flags.s,AF);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
+ S86AddWordF:=Word(R);
+End;
+
+Procedure S86AndByte(Var Source:Byte;Dest:Byte);Begin
+ Dest:=Dest and Source;
+ Exclude(Flags.s,CF);
+ Exclude(Flags.s,_OF);
+ Exclude(Flags.s,AF);
+ SetZFB(Byte(Dest));
+ SetSFB(Byte(Dest));
+ SetPF(Byte(Dest));
+ Source:=Dest;
+End;
+
+Function S86AndByteF(Source,Dest:Byte):Byte;Begin
+ Dest:=Dest and Source;
+ Exclude(Flags.s,CF);
+ Exclude(Flags.s,_OF);
+ Exclude(Flags.s,AF);
+ SetZFB(Byte(Dest));
+ SetSFB(Byte(Dest));
+ SetPF(Byte(Dest));
+ S86AndByteF:=Dest;
+End;
+
+Procedure S86AndWord(Var Source:Word;Dest:Word);Begin
+ Dest:=Dest and Source;
+ Exclude(Flags.s,CF);
+ Exclude(Flags.s,_OF);
+ Exclude(Flags.s,AF);
+ SetZFW(Word(Dest));
+ SetSFW(Word(Dest));
+ SetPF(Byte(Dest));
+ Source:=Dest;
+End;
+
+Function S86AndWordF(Source,Dest:Word):Word;Begin
+ Dest:=Dest and Source;
+ Exclude(Flags.s,CF);
+ Exclude(Flags.s,_OF);
+ Exclude(Flags.s,AF);
+ SetZFW(Word(Dest));
+ SetSFW(Word(Dest));
+ SetPF(Byte(Dest));
+ S86AndWordF:=Dest;
+End;
+
+Procedure S86CmpByte(Var Source:Byte;Dest:Byte);
+Var
+ Tmp:Word;
+Begin
+ Tmp:=Dest-Source;
+ If(Tmp and $100)=$100 Then Include(Flags.s,CF)
+                       Else Exclude(Flags.s,CF);
+ If(Dest xor Source)and(Dest xor Tmp) and $80<>0 Then Include(Flags.s,_OF)
+                                                 Else Exclude(Flags.s,_OF);
+ If(Tmp xor Source xor Dest) and $10<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFB(Byte(Tmp));
+ SetSFB(Byte(Tmp));
+ SetPF(Byte(Tmp));
+End;
+
+Function S86CmpByteF(Source,Dest:Byte):Byte;
+Var
+ Tmp:Word;
+Begin
+ Tmp:=Dest-Source;
+ If(Tmp and $100)=$100 Then Include(Flags.s,CF)
+                       Else Exclude(Flags.s,CF);
+ If(Dest xor Source)and(Dest xor Tmp) and $80<>0 Then Include(Flags.s,_OF)
+                                                 Else Exclude(Flags.s,_OF);
+ If(Tmp xor Source xor Dest) and $10<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFB(Byte(Tmp));
+ SetSFB(Byte(Tmp));
+ SetPF(Byte(Tmp));
+ S86CmpByteF:=Source;
+End;
+
+Procedure S86CmpWord(Var Source:Word;Dest:Word);
+Var
+ Tmp:LongInt;
+Begin
+ Tmp:=Dest-Source;
+ If(Tmp and $10000)=$10000 Then Include(Flags.s,CF)
+                           Else Exclude(Flags.s,CF);
+ If(Dest xor Source)and(Dest and Tmp) and $8000<>0 Then Include(Flags.s,_OF)
+                                                   Else Exclude(Flags.s,_OF);
+ If(Tmp xor Source xor Dest) and $10<>0 Then Include(Flags.s,AF)
+                                        Else Include(Flags.s,AF);
+ SetZFW(Word(Tmp));
+ SetSFW(Word(Tmp));
+ SetPF(Tmp);
+End;
+
+Function S86CmpWordF(Source,Dest:Word):Word;
+Var
+ Tmp:LongInt;
+Begin
+ Tmp:=Dest-Source;
+ If(Tmp and $10000)=$10000 Then Include(Flags.s,CF)
+                           Else Exclude(Flags.s,CF);
+ If(Dest xor Source)and(Dest and Tmp) and $8000<>0 Then Include(Flags.s,_OF)
+                                                   Else Exclude(Flags.s,_OF);
+ If(Tmp xor Source xor Dest) and $10<>0 Then Include(Flags.s,AF)
+                                        Else Include(Flags.s,AF);
+ SetZFW(Word(Tmp));
+ SetSFW(Word(Tmp));
+ SetPF(Tmp);
+ S86CmpWordF:=Source;
 End;
 
 Procedure S86DecByte(Var Source:Byte);
@@ -544,10 +724,27 @@ Begin
           Else Exclude(Flags.s,_OF);
  If(R xor ((R-1)) and $10)<>0 Then Include(Flags.s,AF)
                               Else Exclude(Flags.s,AF);
- SetZFB(R);
- SetSFB(R);
- SetPF(R);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
  Source:=Byte(R);
+End;
+
+Function S86DecByteF(Source:Byte):Byte;
+Var
+ R:Integer;
+Begin
+ R:=Source-1;
+ If(R and $FF00<>0)Then Include(Flags.s,CF)
+                   Else Exclude(Flags.s,CF);
+ If(R=$80)Then Include(Flags.s,_OF)
+          Else Exclude(Flags.s,_OF);
+ If(R xor ((R-1)) and $10)<>0 Then Include(Flags.s,AF)
+                              Else Exclude(Flags.s,AF);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
+ S86DecByteF:=Byte(R);
 End;
 
 Procedure S86DecWord(Var Source:Word);
@@ -561,10 +758,27 @@ Begin
             Else Exclude(Flags.s,_OF);
  If(R xor ((R-1)) and $10)<>0 Then Include(Flags.s,AF)
                               Else Exclude(Flags.s,AF);
- SetZFW(R);
- SetSFW(R);
- SetPF(R);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
  Source:=Word(R);
+End;
+
+Function S86DecWordF(Source:Word):Word;
+Var
+ R:LongInt;
+Begin
+ R:=Source-1;
+ If(R and $FFFF0000<>0)Then Include(Flags.s,CF)
+                       Else Exclude(Flags.s,CF);
+ If(R=$7FFF)Then Include(Flags.s,_OF)
+            Else Exclude(Flags.s,_OF);
+ If(R xor ((R-1)) and $10)<>0 Then Include(Flags.s,AF)
+                              Else Exclude(Flags.s,AF);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
+ S86DecWordF:=Word(R);
 End;
 
 Procedure S86IncByte(Var Source:Byte);
@@ -578,10 +792,27 @@ Begin
           Else Exclude(Flags.s,_OF);
  If(R xor ((R-1)) and $10)<>0 Then Include(Flags.s,AF)
                               Else Exclude(Flags.s,AF);
- SetZFB(R);
- SetSFB(R);
- SetPF(R);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
  Source:=Byte(R);
+End;
+
+Function S86IncByteF(Source:Byte):Byte;
+Var
+ R:Integer;
+Begin
+ R:=Source+1;
+ If(R and $FF00<>0)Then Include(Flags.s,CF)
+                   Else Exclude(Flags.s,CF);
+ If(R=$80)Then Include(Flags.s,_OF)
+          Else Exclude(Flags.s,_OF);
+ If(R xor ((R-1)) and $10)<>0 Then Include(Flags.s,AF)
+                              Else Exclude(Flags.s,AF);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
+ S86IncByteF:=Byte(R);
 End;
 
 Procedure S86IncWord(Var Source:Word);
@@ -595,10 +826,27 @@ Begin
             Else Exclude(Flags.s,_OF);
  If(R xor ((R-1)) and $10)<>0 Then Include(Flags.s,AF)
                               Else Exclude(Flags.s,AF);
- SetZFW(R);
- SetSFW(R);
- SetPF(R);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
  Source:=Word(R);
+End;
+
+Function S86IncWordF(Source:Word):Word;
+Var
+ R:LongInt;
+Begin
+ R:=Source+1;
+ If(R and $FFFF0000<>0)Then Include(Flags.s,CF)
+                       Else Exclude(Flags.s,CF);
+ If(R=$8000)Then Include(Flags.s,_OF)
+            Else Exclude(Flags.s,_OF);
+ If(R xor ((R-1)) and $10)<>0 Then Include(Flags.s,AF)
+                              Else Exclude(Flags.s,AF);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
+ S86IncWordF:=Word(R);
 End;
 
 Procedure S86SbbByte(Var Source:Byte;Dest:Byte);
@@ -613,10 +861,28 @@ Begin
                                                      Else Exclude(Flags.s,_OF);
  If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
                                         Else Exclude(Flags.s,AF);
- SetZFB(R);
- SetSFB(R);
- SetPF(R);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
  Source:=Byte(R);
+End;
+
+Function S86SbbByteF(Source,Dest:Byte):Byte;
+Var
+ R:Integer;
+Begin
+ If(CF in Flags.s)Then Inc(Source);
+ R:=Dest-Source;
+ If(R and $FF00<>0)Then Include(Flags.s,CF)
+                   Else Exclude(Flags.s,CF);
+ If(((dest xor source) and (dest xor R)) and $80)<>0 Then Include(Flags.s,_OF)
+                                                     Else Exclude(Flags.s,_OF);
+ If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
+ S86SbbByteF:=Byte(R);
 End;
 
 Procedure S86SbbWord(Var Source:Word;Dest:Word);
@@ -631,10 +897,28 @@ Begin
                                                         Else Exclude(Flags.s,_OF);
  If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
                                         Else Exclude(Flags.s,AF);
- SetZFW(R);
- SetSFW(R);
- SetPF(R);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
  Source:=Word(R);
+End;
+
+Function S86SbbWordF(Source,Dest:Word):Word;
+Var
+ R:LongInt;
+Begin
+ If(CF in Flags.s)Then Inc(Source);
+ R:=Dest-Source;
+ If(R and $FFFF0000<>0)Then Include(Flags.s,CF)
+                       Else Exclude(Flags.s,CF);
+ If(((dest xor source) and (dest xor R)) and $8000)<>0 Then Include(Flags.s,_OF)
+                                                        Else Exclude(Flags.s,_OF);
+ If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
+ S86SbbWordF:=Word(R);
 End;
 
 Procedure S86SubByte(Var Source:Byte;Dest:Byte);
@@ -648,10 +932,27 @@ Begin
                                                      Else Exclude(Flags.s,_OF);
  If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
                                         Else Exclude(Flags.s,AF);
- SetZFB(R);
- SetSFB(R);
- SetPF(R);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
  Source:=Byte(R);
+End;
+
+Function S86SubByteF(Source,Dest:Byte):Byte;
+Var
+ R:Integer;
+Begin
+ R:=Dest-Source;
+ If(R and $FF00<>0)Then Include(Flags.s,CF)
+                   Else Exclude(Flags.s,CF);
+ If(((dest xor source) and (dest xor R)) and $80)<>0 Then Include(Flags.s,_OF)
+                                                     Else Exclude(Flags.s,_OF);
+ If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFB(Byte(R));
+ SetSFB(Byte(R));
+ SetPF(Byte(R));
+ S86SubByteF:=Byte(R);
 End;
 
 Procedure S86SubWord(Var Source:Word;Dest:Word);
@@ -665,10 +966,27 @@ Begin
                                                         Else Exclude(Flags.s,_OF);
  If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
                                         Else Exclude(Flags.s,AF);
- SetZFW(R);
- SetSFW(R);
- SetPF(R);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
  Source:=Word(R);
+End;
+
+Function S86SubWordF(Source,Dest:Word):Word;
+Var
+ R:LongInt;
+Begin
+ R:=Dest-Source;
+ If(R and $FFFF0000<>0)Then Include(Flags.s,CF)
+                       Else Exclude(Flags.s,CF);
+ If(((dest xor source) and (dest xor R)) and $8000)<>0 Then Include(Flags.s,_OF)
+                                                        Else Exclude(Flags.s,_OF);
+ If((dest xor source xor R) and $10)<>0 Then Include(Flags.s,AF)
+                                        Else Exclude(Flags.s,AF);
+ SetZFW(Word(R));
+ SetSFW(Word(R));
+ SetPF(Byte(R));
+ S86SubWordF:=Word(R);
 End;
 
 Procedure S86IncCountString(Source,Dest:Boolean);Begin
@@ -707,7 +1025,7 @@ Begin
  Seek(Memory,Num shl 2);
  BlockRead(Memory,L,SizeOf(L),ByteReaded);
  If(L=Num+1)Then Begin
-  If(Debug)Then WriteLn('Interruption statique');
+  If(Debug)Then WriteLn('Interruption ',ByteHex2Str(Num),'h statique');
   Case(Num)of
    $10:Begin { Emulation de l'interruption vid‚o }
     Case(Regs.AH)of
@@ -1056,10 +1374,10 @@ Begin
                     Else S86AdcByte(Byte(GetReg8BitsPtr(NextCode)^),Value);
     opAdd:If(IsWord)Then S86AddWord(Regs.AbsWord[NextCode].Lo,Value)
                     Else S86AddByte(Byte(GetReg8BitsPtr(NextCode)^),Value);
-{    opAnd:If(IsWord)Then S86AndWord(Q,Word(Q.Reg.Abs[NextCode]),Value)
-                    Else S86AndByte(Q,Byte(GetReg8BitsPtr(NextCode)^),Value);
-    opCmp:If(IsWord)Then S86CmpWord(Q,Word(Q.Reg.Abs[NextCode]),Value)
-                    Else S86CmpByte(Q,Byte(GetReg8BitsPtr(NextCode)^),Value);}
+    opAnd:If(IsWord)Then S86AndWord(Regs.AbsWord[NextCode].Lo,Value)
+                    Else S86AndByte(Byte(GetReg8BitsPtr(NextCode)^),Value);
+    opCmp:If(IsWord)Then S86CmpWord(Regs.AbsWord[NextCode].Lo,Value)
+                    Else S86CmpByte(Byte(GetReg8BitsPtr(NextCode)^),Value);
     opDec:If(IsWord)Then S86DecWord(Regs.AbsWord[NextCode].Lo)
                     Else S86DecByte(Byte(GetReg8BitsPtr(NextCode)^));
 {    opDiv:If(IsWord)Then S86DivWord(Q,Word(Q.Reg.Abs[NextCode]))
@@ -1106,29 +1424,29 @@ Begin
   End;
  End;
  Case(Operand)of
-{  opAdc:If(IsWord)Then Value:=S86AdcWordF(Q,ReadWordOfs(Ofs),Value)
-                  Else Value:=S86AdcByteF(Q,ReadWordOfs(Ofs),Value);
-  opAdd:If(IsWord)Then Value:=S86AddWordF(Q,ReadWordOfs(Ofs),Value)
-                  Else Value:=S86AddByteF(Q,ReadWordOfs(Ofs),Value);
-  opAnd:If(IsWord)Then Value:=S86AndWordF(Q,ReadWordOfs(Ofs),Value)
-                 Else Value:=S86AndByteF(Q,ReadWordOfs(Ofs),Value);
-  opCmp:If(IsWord)Then Value:=S86CmpWordF(Q,ReadWordOfs(Ofs),Value)
-                 Else Value:=S86CmpByteF(Q,ReadWordOfs(Ofs),Value);
-  opDec:If(IsWord)Then Value:=S86DecWordF(Q,ReadWordOfs(Ofs))
-                  Else Value:=S86DecByteF(Q,ReadWordOfs(Ofs));
-  opDiv:If(IsWord)Then S86DivWord(Q,ReadWordOfs(Ofs))
-                  Else S86DivByte(Q,ReadWordOfs(Ofs));
-  opInc:If(IsWord)Then Value:=S86IncWordF(Q,ReadWordOfs(Ofs))
-                  Else Value:=S86IncByteF(Q,ReadWordOfs(Ofs));
-  opMul:If(IsWord)Then S86MulWord(Q,ReadWordOfs(Ofs))
+  opAdc:If(IsWord)Then Value:=S86AdcWordF(ReadWordOfs(Ofs),Value)
+                  Else Value:=S86AdcByteF(ReadWordOfs(Ofs),Value);
+  opAdd:If(IsWord)Then Value:=S86AddWordF(ReadWordOfs(Ofs),Value)
+                  Else Value:=S86AddByteF(ReadWordOfs(Ofs),Value);
+  opAnd:If(IsWord)Then Value:=S86AndWordF(ReadWordOfs(Ofs),Value)
+                 Else Value:=S86AndByteF(ReadWordOfs(Ofs),Value);
+  opCmp:If(IsWord)Then Value:=S86CmpWordF(ReadWordOfs(Ofs),Value)
+                 Else Value:=S86CmpByteF(ReadWordOfs(Ofs),Value);
+  opDec:If(IsWord)Then Value:=S86DecWordF(ReadWordOfs(Ofs))
+                  Else Value:=S86DecByteF(ReadWordOfs(Ofs));
+{  opDiv:If(IsWord)Then S86DivWord(Q,ReadWordOfs(Ofs))
+                  Else S86DivByte(Q,ReadWordOfs(Ofs));}
+  opInc:If(IsWord)Then Value:=S86IncWordF(ReadWordOfs(Ofs))
+                  Else Value:=S86IncByteF(ReadWordOfs(Ofs));
+{  opMul:If(IsWord)Then S86MulWord(Q,ReadWordOfs(Ofs))
                   Else S86MulByte(Q,ReadWordOfs(Ofs));
   opOr: If(IsWord)Then Value:=S86OrWordF(Q,ReadWordOfs(Ofs),Value)
-                   Else Value:=S86OrByteF(Q,ReadWordOfs(Ofs),Value);
-  opSub:If(IsWord)Then Value:=S86SubWordF(Q,ReadWordOfs(Ofs),Value)
-                  Else Value:=S86SubByteF(Q,ReadWordOfs(Ofs),Value);
-  opSbb:If(IsWord)Then Value:=S86SbbWordF(Q,ReadWordOfs(Ofs),Value)
-                  Else Value:=S86SbbByteF(Q,ReadWordOfs(Ofs),Value);
-  opXor:If(IsWord)Then Value:=S86XorWordF(Q,ReadWordOfs(Ofs),Value)
+                   Else Value:=S86OrByteF(Q,ReadWordOfs(Ofs),Value);}
+  opSub:If(IsWord)Then Value:=S86SubWordF(ReadWordOfs(Ofs),Value)
+                  Else Value:=S86SubByteF(ReadWordOfs(Ofs),Value);
+  opSbb:If(IsWord)Then Value:=S86SbbWordF(ReadWordOfs(Ofs),Value)
+                  Else Value:=S86SbbByteF(ReadWordOfs(Ofs),Value);
+{  opXor:If(IsWord)Then Value:=S86XorWordF(Q,ReadWordOfs(Ofs),Value)
                   Else Value:=S86XorByteF(Q,ReadWordOfs(Ofs),Value);}
   opXChg:Begin
   End;
@@ -1311,6 +1629,17 @@ Restart:
           'BP=',HexWord2Str(Regs.BP),', ',
           'SI=',HexWord2Str(Regs.SI),', ',
           'DI=',HexWord2Str(Regs.DI));
+  Write('Flags=(');
+  If(CF in Flags.s)Then Write('CF ');
+  If(PF in Flags.s)Then Write('PF ');
+  If(AF in Flags.s)Then Write('AF ');
+  If(ZF in Flags.s)Then Write('ZF ');
+  If(SF in Flags.s)Then Write('SF ');
+  If(TF in Flags.s)Then Write('TF ');
+  If(_IF in Flags.s)Then Write('IF ');
+  If(DF in Flags.s)Then Write('DF ');
+  If(_OF in Flags.s)Then Write('OF ');
+  WriteLn(')');
  End;
  Case(Code)of
   $00:Begin { ADD registre 8 bits,registre 8 bits}
@@ -1553,20 +1882,20 @@ Restart:
   End;
   $22:Begin { AND registre 8 bits,registre 8 bits}
    NC:=(S86GetCode(1)and$3F)shr 3;
-   {S86AndByte(Q,Byte(GetReg8BitsPtr(NC)^),ReadByteValue(1));}
+   S86AndByte(Byte(GetReg8BitsPtr(NC)^),ReadByteValue(1));
   End;
   $23:Begin { AND registre 16 bits,registre 16 bits}
    NC:=(S86GetCode(1)and$3F)shr 3;
-   {S86AndWord(Q,Word(Q.Reg.Abs[NC]),ReadWordValue(1));}
+   S86AndWord(Regs.AbsWord[NC].Lo,ReadWordValue(1));
   End;
   $24:If(CPU>=cpu80286)Then Begin { AND AL,xxh }
-   {S86AndByte(Q,Q.Reg.AL,S86GetCode(Q,1));}
+   S86AndByte(Regs.AL,S86GetCode(1));
    IncCode(2);
   End
    Else
   Goto InvalidOpCode;
   $25:If(CPU>=cpu80286)Then Begin { AND AX,xxyyh }
-   {S86AndWord(Regs.AX,GetCodeWord(1));}
+   S86AndWord(Regs.AX,GetCodeWord(1));
    IncCode(3);
   End
    Else
@@ -1599,7 +1928,7 @@ Restart:
    WriteValue(GetReg8Bits((S86GetCode(1)and$3F)shr 3),1,False,opSub);
   End;
   $29:Begin { SUB registre 16 bits,registre 16 bits}
-   WriteValue(Regs.Abs[(S86GetCode(1)and$3F)shr 3],1,True,opSub);
+   WriteValue(Regs.AbsWord[(S86GetCode(1)and$3F)shr 3].Lo,1,True,opSub);
   End;
   $2A:Begin { SUB registre 8 bits,registre 8 bits}
    NC:=(S86GetCode(1)and$3F)shr 3;
@@ -1701,20 +2030,20 @@ Restart:
   End;
   $3A:Begin { CMP registre 8 bits,registre 8 bits}
    NC:=(S86GetCode(1)and$3F)shr 3;
-   {S86CmpByte(Q,Byte(GetReg8BitsPtr(NC)^),ReadByteValue(1));}
+   S86CmpByte(Byte(GetReg8BitsPtr(NC)^),ReadByteValue(1));
   End;
   $3B:Begin { CMP registre 16 bits,registre 16 bits}
    NC:=(S86GetCode(1)and$3F)shr 3;
-   {S86CmpWord(Q,Word(Q.Reg.Abs[NC]),ReadWordValue(1));}
+   S86CmpWord(Regs.AbsWord[NC].Lo,ReadWordValue(1));
   End;
   $3C:If(CPU>=cpu80286)Then Begin { CMP AL,xxh }
-   {S86CmpByte(Q,Q.Reg.AL,S86GetCode(Q,1));}
+   S86CmpByte(Regs.AL,S86GetCode(1));
    IncCode(2);
   End
    Else
   Goto InvalidOpCode;
   $3D:If(CPU>=cpu80286)Then Begin { CMP AX,xxyyh }
-   {S86CmpWord(Q,Q.Reg.AX,GetCodeWord(1));}
+   S86CmpWord(Regs.AX,GetCodeWord(1));
    IncCode(3);
   End
    Else
@@ -1841,13 +2170,13 @@ Restart:
    Else
   Goto InvalidOpCode;
   $67:Goto InvalidOpCode;
-  $68:If(CPU>=cpu80286)Then Begin { PUSH nombre imm,diat 16 bits }
+  $68:If(CPU>=cpu80286)Then Begin { PUSH nombre imm‚diat 16 bits }
    PushWordStack(GetCodeWord(1));
    IncCode(3);
   End
    Else
   Goto InvalidOpCode;
-  $6A:If(CPU>=cpu80286)Then Begin { PUSH nombre imm,diat 8 bits en 16 bits}
+  $6A:If(CPU>=cpu80286)Then Begin { PUSH nombre imm‚diat 8 bits en 16 bits}
    NC:=S86GetCode(1);
    If NC>=$80Then PushWordStack($FF00+NC)
              Else PushWordStack(NC);
@@ -1889,7 +2218,7 @@ Restart:
      IncCode(4);
     End;
     $1F:Begin
-     {S86CmpWord(Word(Q.Reg.Abs[NC and$07]),GetCodeWord(2));}
+     S86CmpWord(Regs.AbsWord[NC and$07].Lo,GetCodeWord(2));
      IncCode(4);
     End;
     Else Goto InvalidOpCode;
@@ -2437,7 +2766,7 @@ Restart:
      IncCode(2);
     End;
     $C8..$CF:Begin { DEC }
-{     S86DecByte(Q,Byte(GetReg8BitsPtr(NC)^));}
+     S86DecByte(Byte(GetReg8BitsPtr(NC)^));
      IncCode(2);
     End;
     Else Goto InvalidOpcode;
