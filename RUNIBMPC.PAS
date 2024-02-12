@@ -47,7 +47,7 @@ Const
  cpuPentiumMMX=12;         { Pentium-MMX }
  cpuPentiumII=13;          { Pentium II }
 
-  {Les diff‚rants fabricants du CPU}
+  {Les diff‚rents fabricants du CPU}
  cvIntel=0;                { Intel, par d‚faut }
  cvCyrix=1;                { Cyrix }
  cvIBM=2;                  { IBM }
@@ -445,19 +445,85 @@ Procedure S86FillChar(ES,DI,CX:Word;AL:Byte);
 Var
  Ptr:Pointer;
 Begin
- GetMem(Ptr,CX);
- If(Ptr<>NIL)Then Begin
-  FillChar(Ptr^,CX,AL);
-  If(DF)in(Flags.s)Then Begin { Sens inverse? }
-   WriteBlock(ES,DI-CX,Ptr^,CX);
-  End
-   Else
-  Begin
+ If CX<>0 Then Begin
+  GetMem(Ptr,CX);
+  If(Ptr<>NIL)Then Begin
+   FillChar(Ptr^,CX,AL);
+   If(DF)in(Flags.s)Then Begin { Sens inverse? }
+    WriteBlock(ES,DI-CX,Ptr^,CX);
+   End
+    Else
+   Begin
    WriteBlock(ES,DI,Ptr^,CX);
+   End;
+   FreeMem(Ptr,CX);
   End;
-  FreeMem(Ptr,CX);
  End;
 End;
+
+Procedure S86FillWord(ES,DI,CX,AX:Word);
+Type
+ TWord=Array[0..32000]of Word;
+Var
+ Ptr:^TWord;
+ I:Integer;
+Begin
+ If CX<>0 Then Begin
+  GetMem(Ptr,CX);
+  If(Ptr<>NIL)Then Begin
+   For I:=0 to(CX shr 1)-1do Begin
+    Ptr^[I]:=AX;
+   End;
+   If(DF)in(Flags.s)Then Begin { Sens inverse? }
+    WriteBlock(ES,DI-CX,Ptr^,CX);
+   End
+    Else
+   Begin
+    WriteBlock(ES,DI,Ptr^,CX);
+   End;
+   FreeMem(Ptr,CX);
+  End;
+ End;
+End;
+
+Procedure S86CompareByte(DS,SI,ES,DI,CX:Word);
+Type
+ TByte=Array[0..65520]of Byte;
+Var
+ Tmp:Byte;
+ PtrSource,PtrDest:^TByte;
+Begin
+ GetMem(PtrSource,CX);
+ If(PtrSource<>NIL)Then Begin
+  GetMem(PtrDest,CX);
+  If(PtrDest<>NIL)Then Begin
+   If(DF)in(Flags.s)Then Begin { Sens inverse? }
+    ReadBlock(DS,SI-CX,PtrSource^,CX);
+    ReadBlock(ES,DI-CX,PtrDest^,CX);
+   End
+    Else
+   Begin
+    ReadBlock(DS,SI,PtrSource^,CX);
+    ReadBlock(ES,DI,PtrDest^,CX);
+   End;
+   For I:=0 to CX-1 do Begin
+    Tmp:=PtrDest^[I]-PtrSource^[I];
+    If(Tmp and $100)=$100 Then Include(Flags.s,CF)
+                          Else Exclude(Flags.s,CF);
+    If(PtrDest^[I] xor PtrSource^[I])and(PtrDest^[I] xor Tmp) and $80<>0 Then Include(Flags.s,_OF)
+                                                                         Else Exclude(Flags.s,_OF);
+    If(Tmp xor PtrSource^[I] xor PtrDest^[I]) and $10<>0 Then Include(Flags.s,AF)
+                                                         Else Exclude(Flags.s,AF);
+    SetZFB(Byte(Tmp));
+    SetSFB(Byte(Tmp));
+    SetPF(Byte(Tmp));
+   End;
+   FreeMem(PtrDest,CX);
+  End;
+  FreeMem(PtrSource,CX);
+ End;
+End;
+
 
 Procedure PushWordStack(Value:Word);
 Var
@@ -652,6 +718,25 @@ Function S86AndWordF(Source,Dest:Word):Word;Begin
  S86AndWordF:=Dest;
 End;
 
+Procedure S86BSWAP(Var Source:LongInt);
+Var
+ Tmp:Record
+  T1,T2,T3,T4:Byte;
+ End;
+ SourceByte:Record
+  A1,A2,A3,A4:Byte;
+ End Absolute Source;
+Begin
+ Tmp.T1:=SourceByte.A1;
+ Tmp.T2:=SourceByte.A2;
+ Tmp.T3:=SourceByte.A3;
+ Tmp.T4:=SourceByte.A4;
+ SourceByte.A1:=Tmp.T4;
+ SourceByte.A2:=Tmp.T3;
+ SourceByte.A3:=Tmp.T2;
+ SourceByte.A4:=Tmp.T1;
+End;
+
 Procedure S86CmpByte(Var Source:Byte;Dest:Byte);
 Var
  Tmp:Word;
@@ -810,10 +895,42 @@ Begin
   DivisionException;
   Exit;
  End;
- DividEnd:=(Regs.DX shl 16) or Regs.AX;
+ Dividend:=(Regs.DX shl 16) or Regs.AX;
  Quotient:=Dividend div Source;
  Remainder:=Dividend mod Source;
  If(Quotient>$FFFF)Then DivisionException;
+ Regs.DX:=Remainder;
+ Regs.AX:=Quotient;
+End;
+
+Procedure S86IDivByte(Source:Byte);
+Var
+ Dividend,Quotient,Remainder:Integer;
+Begin
+ If Source=0 Then Begin
+  DivisionException;
+  Exit;
+ End;
+ Dividend:=Regs.AX;
+ Quotient:=Dividend div Source;
+ Remainder:=Dividend mod Source;
+ If(Quotient>$7F)or(Quotient<-$7F)Then DivisionException;
+ Regs.AH:=Remainder;
+ Regs.AL:=Quotient;
+End;
+
+Procedure S86IDivWord(Source:Word);
+Var
+ Dividend,Quotient,Remainder:LongInt;
+Begin
+ If Source=0 Then Begin
+  DivisionException;
+  Exit;
+ End;
+ Dividend:=(Regs.DX shl 16) or Regs.AX;
+ Quotient:=Dividend div Source;
+ Remainder:=Dividend mod Source;
+ If(Quotient>$7FFF)or(Quotient<-$7FFF)Then DivisionException;
  Regs.DX:=Remainder;
  Regs.AX:=Quotient;
 End;
@@ -1060,6 +1177,126 @@ Function S86OrWordF(Source,Dest:Word):Word;Begin
  S86OrWordF:=Dest;
 End;
 
+Procedure S86RolByte(Var Source:Byte;Count:Byte);
+Var
+ CFValue:Byte;
+ Test1,Test2:Boolean;
+Begin
+ While Count>0 do Begin
+  If(Source and $80)<>0 Then Begin
+   Include(Flags.s,CF);
+   CFValue:=1;
+  End
+   Else
+  Begin
+   Exclude(Flags.s,CF);
+   CFValue:=0;
+  End;
+  Source:=(Source shl 1)or CFValue;
+  Dec(count);
+ End;
+ Test1:=((Source and $80) = 0);
+ Test2:=CF in Flags.s;
+ If Test1<>Test2 Then Include(Flags.s,_OF)
+                 Else Exclude(Flags.s,_OF);
+End;
+
+Procedure S86RolWord(Var Source:Word;Count:Byte);
+Var
+ CFValue:Word;
+ Test1,Test2:Boolean;
+Begin
+ While Count>0 do Begin
+  If(Source and $8000)<>0 Then Begin
+   Include(Flags.s,CF);
+   CFValue:=1;
+  End
+   Else
+  Begin
+   Exclude(Flags.s,CF);
+   CFValue:=0;
+  End;
+  Source:=(Source shl 1) or CFValue;
+  Dec(Count);
+ End;
+ Test1:=((Source and $8000)=0);
+ Test2:=CF in Flags.s;
+ If Test1<>Test2 Then Include(Flags.s,_OF)
+                 Else Exclude(Flags.s,_OF);
+End;
+
+Procedure S86RorByte(Var Source:Byte;Count:Byte);
+Var
+ CFValue:Byte;
+ Test1,Test2:Boolean;
+Begin
+ While Count>0 do Begin
+  If (Source and $01)<>0 Then Begin
+   Include(Flags.s,CF);
+   CFValue:=1;
+  End
+   Else
+  Begin
+   Exclude(Flags.s,CF);
+   CFValue:=0;
+  End;
+  Source:=(Source shr 1) or (CFValue shl 7);
+  Dec(count);
+ End;
+ Test1:=(Source and $40)=0;
+ Test2:=(Source and $80)=0;
+ If Test1<>Test2 Then Include(Flags.s,_OF)
+                 Else Exclude(Flags.s,_OF);
+End;
+
+Procedure S86RorWord(Var Source:Word;Count:Byte);
+Var
+ CFValue:Word;
+ Test1,Test2:Boolean;
+Begin
+ While Count>0 do Begin
+  If(Source and $01)<>0 Then Begin
+   Include(Flags.s,CF);
+   CFValue:=1;
+  End
+   Else
+  Begin
+   Exclude(Flags.s,CF);
+   CFValue:=0;
+  End;
+  Source:=(Source shr 1)or(CFValue shl 15);
+  Dec(Count);
+ End;
+ Test1:=(Source and $4000)=0;
+ Test2:=(Source and $8000)=0;
+ If Test1<>Test2 Then Include(Flags.s,_OF)
+                 Else Exclude(Flags.s,_OF);
+End;
+
+Procedure S86SarByte(Var Source:Byte;Count:Byte);Begin
+ If(((Source shr (Count-1)) and $01)<>0)Then Include(Flags.s,CF)
+                                        Else Exclude(Flags.s,CF);
+ While Count>0 do Begin
+  Source:=(Source shr 1)or(Source and $80);
+  Dec(count);
+ End;
+ SetSFB(Source);
+ SetPF(Source);
+ SetZFB(Source);
+End;
+
+Procedure S86SarWord(Var Source:Word;Count:Byte);Begin
+ If(((Source shr (Count-1)) and $01)<>0)Then Include(Flags.s,CF)
+                                        Else Exclude(Flags.s,CF);
+ While Count>0 do Begin
+  Source:=(Source shr 1)or(Source and $8000);
+  Dec(Count);
+ end;
+ SetSFW(Source);
+ SetZFW(Source);
+ SetPF(Byte(Source));
+End;
+
 Procedure S86SbbByte(Var Source:Byte;Dest:Byte);
 Var
  R:Integer;
@@ -1175,6 +1412,39 @@ Begin
                                           Else Exclude(Flags.s,_OF);
  SetZFW(Source);
  SetSFW(Source);
+ SetPF(Byte(Source));
+End;
+
+Procedure S86ShrByte(Var Source:Byte;Count:Byte);Begin
+ If(Count>=9)Then Begin
+  Exclude(Flags.s,CF);
+  Source:=0;
+ End
+  Else
+ Begin
+  If((Source shr(Count-1))and $1)<>0 Then Include(Flags.s,CF)
+                                     Else Exclude(Flags.s,CF);
+  Source:=Source shr Count;
+ End;
+ SetSFB(Source);
+ SetPF(Source);
+ SetZFB(Byte(Source));
+End;
+
+
+Procedure S86ShrWord(Var Source:Word;Count:Byte);Begin
+ If(Count>16)Then Begin
+  Exclude(Flags.s,CF);
+  Source:=0;
+ End
+  Else
+ Begin
+  If((Source shr(Count-1))and $1)<>0 Then Include(Flags.s,CF)
+                                     Else Exclude(Flags.s,CF);
+  Source:=Source shr Count;
+ End;
+ SetSFW(Source);
+ SetZFW(Source);
  SetPF(Byte(Source));
 End;
 
@@ -2118,7 +2388,7 @@ Restart:
    $B5:If(CPU>=cpui386)Then GS:=LoadAddr(2) { LGS }
                        Else Goto InvalidOpCode;
    $C8..$CF:If(CPU>=cpui486)Then Begin { BSWAP }
-    {BSwap(Q.Reg.Abs[S86GetCode(Q,1)and 7]);}
+    S86BSWAP(Regs.Abs[S86GetCode(1)and 7]);
     IncCode(2);
    End
     Else
@@ -2624,7 +2894,7 @@ Restart:
   End;
   $9B:Begin { WAIT }
 {   If((MP)in(Q.Control.s))and
-     ((TS)in(Q.Control.s))Then S86CallInt(Q,7);}
+     ((TS)in(Q.Control.s))Then S86CallInt(7);}
    IncCode(1);
   End;
   $9C:Begin { PUSHF }
@@ -2717,11 +2987,11 @@ Restart:
   $C0:If(CPU>=cpu80286)Then Begin
    Case S86GetCode(1)of
     $C0..$C7:Begin { ROL registre 8 bits,xxh }
-     {S86RolByteDirect(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^),S86GetCode(Q,2));}
+     S86RolByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),S86GetCode(2));
      IncCode(3);
     End;
     $C8..$CF:Begin { ROR registre 8 bits,xxh }
-     {S86RorByteDirect(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^),S86GetCode(Q,2));}
+     S86RorByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),S86GetCode(2));
      IncCode(3);
     End;
    End;
@@ -2771,48 +3041,48 @@ Restart:
   End;
   $D0:Begin
    Case S86GetCode(1)shr 3of
-{C0}$18:{S86RolByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {ROL reg8,1}
-{C8}$19:{S86RorByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {ROR reg8,1}
+{C0}$18:S86RolByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),1);      {ROL reg8,1}
+{C8}$19:S86RorByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),1);      {ROR reg8,1}
 {E0}$1C:S86ShlByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),1);      {SHL reg8,1}
-{E8}$1D:{S86ShrByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {SHR reg8,1}
-{F0}$1E:{S86SalByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {SAL reg8,1}
-{F8}$1F:{S86SarByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {SAR reg8,1}
+{E8}$1D:S86ShrByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),1);      {SHR reg8,1}
+{F0}$1E:S86ShlByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),1);      {SAL reg8,1}
+{F8}$1F:S86SarByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),1);      {SAR reg8,1}
     Else Goto InvalidOpcode;
    End;
    IncCode(2);
   End;
   $D1:Begin
    Case S86GetCode(1)shr 3of
-{C0}$18:{S86RolWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {ROL reg16,1}
-{C8}$19:{S86RorWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {ROR reg16,1}
+{C0}$18:S86RolWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,1);       {ROL reg16,1}
+{C8}$19:S86RorWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,1);       {ROR reg16,1}
 {E0}$1C:S86ShlWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,1);       {SHL reg16,1}
-{E8}$1D:{S86ShrWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {SHR reg16,1}
-{F0}$1E:{S86SalWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {SAL reg16,1}
-{F8}$1F:{S86SarWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {SAR reg16,1}
+{E8}$1D:S86ShrWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,1);       {SHR reg16,1}
+{F0}$1E:S86ShlWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,1);       {SAL reg16,1}
+{F8}$1F:S86SarWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,1);       {SAR reg16,1}
     Else Goto InvalidOpcode;
    End;
    IncCode(2);
   End;
   $D2:Begin
    Case S86GetCode(1)shr 3of
-{C0}$18:{S86RolByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{ROL reg8,CL}
-{C8}$19:{S86RorByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{ROR reg8,CL}
+{C0}$18:S86RolByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),Regs.CL);{ROL reg8,CL}
+{C8}$19:S86RorByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),Regs.CL);{ROR reg8,CL}
 {E0}$1C:S86ShlByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),Regs.CL);{SHL reg8,CL}
-{E8}$1D:{S86ShrByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{SHR reg8,CL}
-{F0}$1E:{S86SalByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{SAL reg8,CL}
-{F8}$1F:{S86SarByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{SAR reg8,CL}
+{E8}$1D:S86ShrByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),Regs.CL);{SHR reg8,CL}
+{F0}$1E:S86ShlByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),Regs.CL);{SAL reg8,CL}
+{F8}$1F:S86SarByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),Regs.CL);{SAR reg8,CL}
     Else Goto InvalidOpcode;
    End;
    IncCode(2);
   End;
   $D3:Begin
    Case S86GetCode(1)shr 3of
-{C0}$18:{S86RolWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {ROL reg16,CL}
-{C8}$19:{S86RorWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {ROR reg16,CL}
+{C0}$18:S86RolWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,Regs.CL); {ROL reg16,CL}
+{C8}$19:S86RorWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,Regs.CL); {ROR reg16,CL}
 {E0}$1C:S86ShlWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,Regs.CL); {SHL reg16,CL}
-{E8}$1D:{S86ShrWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {SHR reg16,CL}
-{F0}$1E:{S86SalWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {SAL reg16,CL}
-{F8}$1F:{S86SarWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {SAR reg16,CL}
+{E8}$1D:S86ShrWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,Regs.CL); {SHR reg16,CL}
+{F0}$1E:S86ShlWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,Regs.CL); {SAL reg16,CL}
+{F8}$1F:S86SarWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,Regs.CL); {SAR reg16,CL}
     Else Goto InvalidOpcode;
    End;
    IncCode(2);
@@ -2932,7 +3202,7 @@ Restart:
     IncCode(2);
    End;
    $A6:Begin { REP CMPSB }
-    {S86CompareByte(Q,Q.Seg.DS,Q.Reg.SI,Q.Seg.ES,Q.Reg.DI,Q.Reg.CX);}
+    S86CompareByte(Segs.DS,Regs.SI,Segs.ES,Regs.DI,Regs.CX);
     S86AddCountString(Regs.CX,False,True);
     Regs.CX:=0;
     IncCode(2);
@@ -2944,7 +3214,7 @@ Restart:
     IncCode(2);
    End;
    $AB:Begin { REP STOSW }
-    {S86FillWord(Q,Q.Seg.ES,Q.Reg.DI,Q.Reg.CX shl 1,Q.Reg.AX);}
+    S86FillWord(Segs.ES,Regs.DI,Regs.CX shl 1,Regs.AX);
     S86AddCountString(Regs.CX shl 1,False,True);
     Regs.CX:=0;
     IncCode(2);
@@ -2988,7 +3258,7 @@ Restart:
      IncCode(2);
     End;
     $F8..$FF:Begin
-     {S86IDivByte(Q,GetReg8Bits(NC));}
+     S86IDivByte(GetReg8Bits(NC));
      IncCode(2);
     End;
     Else Goto InvalidOpcode;
@@ -3014,7 +3284,7 @@ Restart:
      S86DivWord(ReadValue(1,1));
     End;
     $78..$7F:Begin
-     {S86IDivWord(Q,ReadValue(1,1));}
+     S86IDivWord(ReadValue(1,1));
     End;
     $C0..$C7:Begin
      S86TestWord(Regs.AbsWord[NC and 7].Lo,GetCodeWord(2));
@@ -3041,7 +3311,7 @@ Restart:
      IncCode(2);
     End;
     $F8..$FF:Begin
-     {S86IDivWord(Q,Q.Reg.Abs[NC and 7]);}
+     S86IDivWord(Regs.AbsWord[NC and 7].Lo);
      IncCode(2);
     End;
     Else Goto InvalidOpcode;
