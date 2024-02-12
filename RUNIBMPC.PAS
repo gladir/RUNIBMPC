@@ -1132,6 +1132,52 @@ Begin
  S86SbbWordF:=Word(R);
 End;
 
+Procedure S86ShlByte(Var Source:Byte;Count:Byte);
+Var
+ CFValue:Boolean;
+Begin
+ If(Count>=9)Then Begin
+  Exclude(Flags.s,CF);
+  Source:=0;
+ End
+  Else
+ Begin
+  If(Source and ($100 shr Count))<>0 Then Include(Flags.s,CF)
+                                     Else Exclude(Flags.s,CF);
+  Source:=Source shl Count;
+ End;
+ If Not(CF in Flags.s)Then CFValue:=True
+                      Else CFValue:=False;
+ If(Not(Source and $80=$80))<>CFValue Then Include(Flags.s,_OF)
+                                      Else Exclude(Flags.s,_OF);
+ SetZFB(Source);
+ SetSFB(Source);
+ SetPF(Byte(Source));
+End;
+
+Procedure S86ShlWord(Var Source:Word;Count:Byte);
+Var
+ CFValue:Boolean;
+Begin
+ If Count>16 Then Begin
+  Exclude(Flags.s,CF);
+  Source:=0;
+ End
+  Else
+ Begin
+  If(Source and ($10000 shr Count))<>0 Then Include(Flags.s,CF)
+                                       Else Exclude(Flags.s,CF);
+  Source:=Source shl Count;
+ End;
+ If Not(CF in Flags.s)Then CFValue:=True
+                      Else CFValue:=False;
+ If(Not(Source and $8000=$8000))<>CFValue Then Include(Flags.s,_OF)
+                                          Else Exclude(Flags.s,_OF);
+ SetZFW(Source);
+ SetSFW(Source);
+ SetPF(Byte(Source));
+End;
+
 Procedure S86SubByte(Var Source:Byte;Dest:Byte);
 Var
  R:Integer;
@@ -2727,7 +2773,7 @@ Restart:
    Case S86GetCode(1)shr 3of
 {C0}$18:{S86RolByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {ROL reg8,1}
 {C8}$19:{S86RorByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {ROR reg8,1}
-{E0}$1C:{S86ShlByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {SHL reg8,1}
+{E0}$1C:S86ShlByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),1);      {SHL reg8,1}
 {E8}$1D:{S86ShrByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {SHR reg8,1}
 {F0}$1E:{S86SalByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {SAL reg8,1}
 {F8}$1F:{S86SarByte(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};  {SAR reg8,1}
@@ -2739,7 +2785,7 @@ Restart:
    Case S86GetCode(1)shr 3of
 {C0}$18:{S86RolWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {ROL reg16,1}
 {C8}$19:{S86RorWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {ROR reg16,1}
-{E0}$1C:{S86ShlWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {SHL reg16,1}
+{E0}$1C:S86ShlWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,1);       {SHL reg16,1}
 {E8}$1D:{S86ShrWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {SHR reg16,1}
 {F0}$1E:{S86SalWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {SAL reg16,1}
 {F8}$1F:{S86SarWord(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))};   {SAR reg16,1}
@@ -2751,7 +2797,7 @@ Restart:
    Case S86GetCode(1)shr 3of
 {C0}$18:{S86RolByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{ROL reg8,CL}
 {C8}$19:{S86RorByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{ROR reg8,CL}
-{E0}$1C:{S86ShlByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{SHL reg8,CL}
+{E0}$1C:S86ShlByte(Byte(GetReg8BitsPtr(S86GetCode(1))^),Regs.CL);{SHL reg8,CL}
 {E8}$1D:{S86ShrByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{SHR reg8,CL}
 {F0}$1E:{S86SalByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{SAL reg8,CL}
 {F8}$1F:{S86SarByteCL(Q,Byte(GetReg8BitsPtr(S86GetCode(Q,1))^))};{SAR reg8,CL}
@@ -2763,7 +2809,7 @@ Restart:
    Case S86GetCode(1)shr 3of
 {C0}$18:{S86RolWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {ROL reg16,CL}
 {C8}$19:{S86RorWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {ROR reg16,CL}
-{E0}$1C:{S86ShlWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {SHL reg16,CL}
+{E0}$1C:S86ShlWord(Regs.AbsWord[S86GetCode(1)and 7].Lo,Regs.CL); {SHL reg16,CL}
 {E8}$1D:{S86ShrWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {SHR reg16,CL}
 {F0}$1E:{S86SalWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {SAL reg16,CL}
 {F8}$1F:{S86SarWordCL(Q,Word(Q.Reg.Abs[S86GetCode(Q,1)and 7]))}; {SAR reg16,CL}
