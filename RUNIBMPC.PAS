@@ -6,7 +6,7 @@
 
 Program RUNIBMPC;
 
-Uses Crt,DOS;
+Uses Strings,Crt,DOS;
 
 Const
  SwapFileMemory='RUNIBMPC.$$$';
@@ -143,6 +143,14 @@ Begin
  B:=T;
 End;
 
+Function GetCurrentDisk:Char;
+Var
+ CurrentDir:String;
+Begin
+ GetDir(0,CurrentDir);
+ GetCurrentDisk:=CurrentDir[1];
+End;
+
 Function AddrExt2Conv(Seg,Ofs:Word):LongInt;Begin
  AddrExt2Conv:=LongInt(Seg)shl 4+Ofs;
 End;
@@ -250,6 +258,10 @@ Begin
  End;}
  Seek(Memory,Addr);
  BlockWrite(Memory,Buffer,SizeOf,ByteWrited);
+End;
+
+Procedure WriteByte(Seg,Ofs:Word;X:Byte);Begin
+ WriteBlock(Seg,Ofs,X,SizeOf(X));
 End;
 
 Procedure WriteWord(Seg,Ofs,X:Word);Begin
@@ -1607,8 +1619,11 @@ Var
  L:LongInt;
  Tampon:Array[0..511]of Byte;
  TamponChr:Array[0..511]of Char Absolute Tampon;
+ TamponStr:String Absolute Tampon;
  Ptr:Pointer;
  I:Word;
+ Month,WDay,Hour,Minute,Second,Sec100:Word;
+ BoolValue:Boolean;
  ByteReaded:Word;
 Begin
  Seek(Memory,Num shl 2);
@@ -1712,31 +1727,113 @@ Begin
       End;
      End;
     End;
+    $0A:Begin
+     ReadLn(TamponStr);
+     ReadBlock(Segs.DS,Regs.DX+1,ByteReaded,1);
+     If ByteReaded<Length(TamponStr)Then TamponStr[0]:=Char(ByteReaded);
+     WriteBlock(Segs.DS,Regs.DX+1,TamponStr,Length(TamponStr)+1);
+    End;
     $0B:Begin { Demande l'‚tat de la console }
      If(Keypressed)Then Regs.AL:=255
                    Else Regs.AL:=0;
+    End;
+    $0C:Begin
+     While(Keypressed)do ReadKey;
+     Case Regs.AL of
+      $01:Begin
+       Regs.AL:=Byte(ReadKey);
+       Write(Char(Regs.AL));
+      End;
+      $02:Write(Chr(Regs.DL));
+      $07,$08:Regs.AL:=Byte(ReadKey);
+      $0A:Begin
+       ReadLn(TamponStr);
+       ReadBlock(Segs.DS,Regs.DX+1,ByteReaded,1);
+       If ByteReaded<Length(TamponStr)Then TamponStr[0]:=Char(ByteReaded);
+       WriteBlock(Segs.DS,Regs.DX+1,TamponStr,Length(TamponStr)+1);
+      End;
+     End;
     End;
     $0E:Begin { S‚lectionne un disque (Select Disk) }
      {$I-}ChDir(Chr(Regs.DL+65)+':');{$I+}
      If IoResult<>0Then Regs.AL:=$FF
                    Else Regs.AL:=0;
     End;
-    $25:Begin
+    $19:Begin
+     Regs.AL:=Ord(GetCurrentDisk)-Ord('A');
+    End;
+    $25:Begin { Fixe une adresse d'interruption }
      LongRec(L).Hi:=Segs.DS;
      LongRec(L).Lo:=Regs.DX;
      WriteBlock(0,Regs.AL shl 2,L,4);
     End;
+    $2A:Begin
+     GetDate(Regs.CX,Month,Regs.DX,WDay);
+     Regs.DH:=Month;
+     Regs.AL:=WDay;
+    End;
+    $2C:Begin
+     GetTime(Hour,Minute,Second,Sec100);
+     Regs.CH:=Hour;
+     Regs.CL:=Minute;
+     Regs.DH:=Second;
+     Regs.DL:=Sec100;
+    End;
+    $2E:SetVerify(Boolean(Regs.AL));
     $30:Begin { Demande la version DOS }
      Regs.AX:=DOSVersion;
      Regs.BH:=0 {OEMVersion};
     End;
     $33:Case(Regs.AL)of
-     5:Regs.DX:=0 {UnitBoot};
+     $00:Begin
+      GetCBreak(BoolValue);
+      Regs.DL:=Byte(BoolValue);
+     End;
+     $01:SetCBreak(Boolean(Regs.DL));
+     $05:Regs.DX:=0 {Unit‚ de d‚marrage};
+     $06:Begin
+      Regs.AL:=$FF;
+      Regs.BX:=DOSVersion;
+      Regs.DL:=0;
+      Regs.DH:=(1 shl 3); { DOS en ROM }
+     End;
     End;
-    $35:Begin
+    $35:Begin { Demande une adresse d'interruption }
      ReadBlock(0,Regs.AL shl 2,L,4);
      Segs.ES:=LongRec(L).Hi;
      Regs.DI:=LongRec(L).Lo;
+    End;
+    $36:Begin
+     Regs.AX:=4;
+     Regs.CX:=512;
+     Regs.BX:=Word(DiskFree(Regs.DL) shr 11);
+     Regs.DX:=Word(DiskSize(Regs.DL) shr 11);
+    End;
+    $37:Case Regs.AL of
+     $00:Regs.DL:=Ord('/');
+    End;
+    $38:Case Regs.AL of
+     $00:Begin
+      WriteWord(Segs.DS,Regs.DX,2); { Ann‚e-Mois-Jour }
+      WriteWord(Segs.DS,Regs.DX+$02,Byte('$'));
+      WriteWord(Segs.DS,Regs.DX+$07,Byte(' '));
+      WriteWord(Segs.DS,Regs.DX+$09,Byte(','));
+      WriteWord(Segs.DS,Regs.DX+$0B,Byte('-'));
+      WriteWord(Segs.DS,Regs.DX+$0D,Byte(':'));
+      WriteByte(Segs.DS,Regs.DX+$0B,(1 shl 0)+(1 shl 1));
+      WriteWord(Segs.DS,Regs.DX+$10,2);
+      WriteWord(Segs.DS,Regs.DX+$11,1);
+      WriteWord(Segs.DS,Regs.DX+$12,0); { Base NIL }
+      WriteWord(Segs.DS,Regs.DX+$14,0); { Segment NIL }
+      WriteWord(Segs.DS,Regs.DX+$16,Byte(','));
+     End;
+    End;
+    $39:Begin
+     ReadBlock(Segs.DS,Regs.DX,Tampon,256);
+     {$I-}MkDir(StrPas(TamponChr));{$I+}
+     Regs.AX:=IOResult;
+     If Regs.AX=0 Then Exclude(Flags.s,CF)
+                  Else Include(Flags.s,CF);
     End;
     $4C:Begin
      Fault:=sfEndProgram;
@@ -1747,7 +1844,12 @@ Begin
      Exclude(Flags.s,CF);
     End;
    End;
-   $33:Case(Regs.AX)of
+   $29:Write(Regs.AL); { Interruption 29h }
+   $2E:Begin { Interrupiton 2Eh }
+    ReadBlock(Segs.DS,Regs.SI,TamponStr,256);
+    Exec(TamponStr,'');
+   End;
+   $33:Case(Regs.AX)of { Interruption 33h }
     1:{__ShowMousePtr};
     2:{__HideMousePtr};
    End;
@@ -2844,7 +2946,7 @@ Restart:
   End;
   $87:Begin { XCHG registre 16 bits,registre 16 bits}
    NC:=(S86GetCode(1) and $3F)shr 3;
-   WriteValue(Word(Regs.Abs[NC and$07]),1,True,opXChg);
+   WriteValue(Regs.AbsWord[NC and$07].Lo,1,True,opXChg);
   End;
   $88:Begin { MOV registre 8 bits,registre 8 bits}
    NC:=(S86GetCode(1) and $3F)shr 3;
@@ -2865,6 +2967,38 @@ Restart:
   $8C:Begin { MOV }
    NC:=(S86GetCode(1)and$3F)shr 3;
    WriteWordValue(Segs.Abs[NC],1);
+  End;
+  $8D:Begin { LEA }
+   NC:=S86GetCode(1);
+   If NC>=$C0 Then Goto InvalidOpcode;
+   Case(NC and $C7)of
+    $00:TW:=Regs.BX+Regs.SI;
+    $01:TW:=Regs.BX+Regs.DI;
+    $02:TW:=Regs.BP+Regs.SI;
+    $03:TW:=Regs.BP+Regs.DI;
+    $04:TW:=Regs.SI;
+    $05:TW:=Regs.DI;
+    $06:TW:=S86GetCode(2);
+    $07:TW:=Regs.BX;
+    $40:TW:=Regs.BX+Regs.SI+S86GetCode(2);
+    $41:TW:=Regs.BX+Regs.DI+S86GetCode(2);
+    $42:TW:=Regs.BP+Regs.SI+S86GetCode(2);
+    $43:TW:=Regs.BP+Regs.DI+S86GetCode(2);
+    $44:TW:=Regs.SI+S86GetCode(2);
+    $45:TW:=Regs.DI+S86GetCode(2);
+    $46:TW:=Regs.BP+S86GetCode(2);
+    $47:TW:=Regs.BX+S86GetCode(2);
+    $80:TW:=S86GetCode(2)+Regs.BX+Regs.SI;
+    $81:TW:=S86GetCode(2)+Regs.BX+Regs.DI;
+    $82:TW:=S86GetCode(2)+Regs.BP+Regs.SI;
+    $83:TW:=S86GetCode(2)+Regs.BP+Regs.DI;
+    $84:TW:=S86GetCode(2)+Regs.SI;
+    $85:TW:=S86GetCode(2)+Regs.DI;
+    $86:TW:=S86GetCode(2)+Regs.BP;
+    $87:TW:=S86GetCode(2)+Regs.BX;
+    Else TW:=0;
+   End;
+   Regs.AbsWord[(NC and$38)shr 3].Lo:=TW;
   End;
   $8E:Begin { MOV Seg,registre 16 bits}
    NC:=((S86GetCode(1)and$3F)shr 3)and 3;
