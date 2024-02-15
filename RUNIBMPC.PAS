@@ -76,7 +76,7 @@ Type
 
 Var
  I:Integer;
- Verbose,Debug:Boolean;
+ Verbose,Debug,ReadOnlyMachine:Boolean;
  FileName,S:String;
  Memory:File;
  ModelComputer:Word;
@@ -747,6 +747,289 @@ Begin
  SourceByte.A2:=Tmp.T3;
  SourceByte.A3:=Tmp.T2;
  SourceByte.A4:=Tmp.T1;
+End;
+
+Procedure S86CallInt(Num:Byte);
+Var
+ L:LongInt;
+ Tampon:Array[0..511]of Byte;
+ TamponChr:Array[0..511]of Char Absolute Tampon;
+ TamponStr:String Absolute Tampon;
+ Ptr:Pointer;
+ I:Word;
+ Month,WDay,Hour,Minute,Second,Sec100:Word;
+ BoolValue:Boolean;
+ ByteReaded:Word;
+Begin
+ Seek(Memory,Num shl 2);
+ BlockRead(Memory,L,SizeOf(L),ByteReaded);
+ If(L=Num+1)Then Begin
+  If(Debug)Then WriteLn('Interruption ',ByteHex2Str(Num),'h statique');
+  Case(Num)of
+   $10:Begin { Emulation de l'interruption vid‚o }
+    Case(Regs.AH)of
+     $02:Begin
+      GotoXY(Regs.DL+1,Regs.DH+1);
+     End;
+     $03:Begin
+      Regs.DL:=WhereX;
+      Regs.DH:=WhereY;
+     End;
+     $06:Begin
+      {WEScrollDn(Q.AppW,Q.Reg.CL,Q.Reg.CH,Q.Reg.DL,Q.Reg.DH);
+      WESetKr(Q.AppW,Q.Reg.BH);
+      WEBarSpcHor(Q.AppW,Q.Reg.CL,Q.Reg.CH,Q.Reg.DL);}
+     End;
+     $07:Begin
+      {WEScrollUp(Q.AppW,Q.Reg.CL,Q.Reg.CH,Q.Reg.DL,Q.Reg.DH);
+      WESetKr(Q.AppW,Q.Reg.BH);
+      WEBarSpcHor(Q.AppW,Q.Reg.CH,Q.Reg.CH,Q.Reg.DL);}
+     End;
+     $08:Begin
+      {Q.Reg.AX:=GetCube(WEGetRX1(Q.AppW)+Q.AppW.X,WEGetRY1(Q.AppW)+Q.AppW.Y);}
+     End;
+     $09:Begin
+      {WESetKr(Q.AppW,Q.Reg.BL);
+      WEBarTxtHor(Q.AppW,Q.AppW.X,Q.AppW.Y,Q.AppW.X+Q.Reg.CX,Chr(Q.Reg.AL));}
+     End;
+     $0A:Begin
+      {BarChrHor(WEGetRX1(Q.AppW)+Q.AppW.X,WEGetRY1(Q.AppW)+Q.AppW.Y,
+                WEGetRX1(Q.AppW)+Q.AppW.X+Q.Reg.CX,Chr(Q.Reg.AL));}
+     End;
+     $0C:Begin
+      {SetPixel((WEGetRX1(Q.AppW)shl 3)+Q.Reg.CX,
+               GetRawY(WEGetRX1(Q.AppW))+Q.Reg.DX,Q.Reg.AL);}
+     End;
+     $0D:Begin
+      {Q.Reg.AL:=GetPixel((WEGetRX1(Q.AppW)shl 3)+Q.Reg.CX,
+                         GetRawY(WEGetRX1(Q.AppW))+Q.Reg.DX);}
+     End;
+     $0E:Begin
+      Case(Regs.AL)of
+       $0D:WriteLn;
+       $0A:;
+       Else Begin
+        TextBackground(Regs.BL shr 4);
+        TextColor(Regs.BL and $F);
+        Write(Chr(Regs.AL));
+       End;
+      End;
+     End;
+     $0F:Begin
+      Regs.AL:=3;  { Num‚ro de mode vid‚o }
+      Regs.AH:=80; { Nombre de colonne }
+      Regs.BH:=0;  { Num‚ro de page courant }
+     End;
+     $1A:If Regs.AL=0Then Begin
+{      Case(GetVideoCardCat)of
+       cvnMDA,cvnHGC:Q.Reg.BL:=1;
+       cvnCGA:Q.Reg.BL:=2;
+       cvnEGA:If(ColorFound)Then Q.Reg.BL:=4
+                            Else Q.Reg.BL:=5;
+       cvnVGA,cvnSvga,cvnVESA:If(ColorFound)Then Q.Reg.BL:=8 Else Q.Reg.BL:=7;
+      End;}
+      Regs.BH:=0;
+      Regs.AL:=$1A;
+     End;
+    End;
+   End;
+   $13:Case(Regs.AH)of { Emulation de l'interruption vid‚o }
+    $02..$05,$07,$0A..$0B:Begin
+     If(Regs.AH)in[3,5,7,$B]Then ReadBlock(Segs.ES,Regs.BX,Tampon,512);
+     If(Regs.AH)in[2,4,$A]Then WriteBlock(Segs.ES,Regs.BX,Tampon,512);
+    End;
+   End;
+   $19:Fault:=sfHotBoot;
+   $18,$1B,$1C:;
+   $1D..$1F:Fault:=sfInvalidIntr;
+   $20:Fault:=sfEndProgram;
+   $21:Case(Regs.AH)of
+    $00:Fault:=sfEndProgram;
+    $01:Begin
+     Regs.AL:=Byte(ReadKey);
+     Write(Char(Regs.AL));
+    End;
+    $02:Write(Chr(Regs.DL));
+    $07,$08:Regs.AL:=Byte(ReadKey);
+    $09:Begin
+     ReadBlock(Segs.DS,Regs.DX,Tampon,512);
+     For I:=0to 511do Begin
+      Case TamponChr[I]of
+       '$':Break;
+       #13:WriteLn;
+       #10:;
+       Else Write(TamponChr[I]);
+      End;
+     End;
+    End;
+    $0A:Begin
+     ReadLn(TamponStr);
+     ReadBlock(Segs.DS,Regs.DX+1,ByteReaded,1);
+     If ByteReaded<Length(TamponStr)Then TamponStr[0]:=Char(ByteReaded);
+     WriteBlock(Segs.DS,Regs.DX+1,TamponStr,Length(TamponStr)+1);
+    End;
+    $0B:Begin { Demande l'‚tat de la console }
+     If(Keypressed)Then Regs.AL:=255
+                   Else Regs.AL:=0;
+    End;
+    $0C:Begin
+     While(Keypressed)do ReadKey;
+     Case Regs.AL of
+      $01:Begin
+       Regs.AL:=Byte(ReadKey);
+       Write(Char(Regs.AL));
+      End;
+      $02:Write(Chr(Regs.DL));
+      $07,$08:Regs.AL:=Byte(ReadKey);
+      $0A:Begin
+       ReadLn(TamponStr);
+       ReadBlock(Segs.DS,Regs.DX+1,ByteReaded,1);
+       If ByteReaded<Length(TamponStr)Then TamponStr[0]:=Char(ByteReaded);
+       WriteBlock(Segs.DS,Regs.DX+1,TamponStr,Length(TamponStr)+1);
+      End;
+     End;
+    End;
+    $0E:Begin { S‚lectionne un disque (Select Disk) }
+     {$I-}ChDir(Chr(Regs.DL+65)+':');{$I+}
+     If IoResult<>0Then Regs.AL:=$FF
+                   Else Regs.AL:=0;
+    End;
+    $19:Begin
+     Regs.AL:=Ord(GetCurrentDisk)-Ord('A');
+    End;
+    $25:Begin { Fixe une adresse d'interruption }
+     LongRec(L).Hi:=Segs.DS;
+     LongRec(L).Lo:=Regs.DX;
+     WriteBlock(0,Regs.AL shl 2,L,4);
+    End;
+    $2A:Begin
+     GetDate(Regs.CX,Month,Regs.DX,WDay);
+     Regs.DH:=Month;
+     Regs.AL:=WDay;
+    End;
+    $2C:Begin
+     GetTime(Hour,Minute,Second,Sec100);
+     Regs.CH:=Hour;
+     Regs.CL:=Minute;
+     Regs.DH:=Second;
+     Regs.DL:=Sec100;
+    End;
+    $2E:If Not(ReadOnlyMachine)Then SetVerify(Boolean(Regs.AL));
+    $30:Begin { Demande la version DOS }
+     Regs.AX:=DOSVersion;
+     Regs.BH:=0 {OEMVersion};
+    End;
+    $33:Case(Regs.AL)of
+     $00:Begin
+      GetCBreak(BoolValue);
+      Regs.DL:=Byte(BoolValue);
+     End;
+     $01:If Not(ReadOnlyMachine)Then SetCBreak(Boolean(Regs.DL));
+     $05:Regs.DX:=0 {Unit‚ de d‚marrage};
+     $06:Begin
+      Regs.AL:=$FF;
+      Regs.BX:=DOSVersion;
+      Regs.DL:=0;
+      Regs.DH:=(1 shl 3); { DOS en ROM }
+     End;
+    End;
+    $35:Begin { Demande une adresse d'interruption }
+     ReadBlock(0,Regs.AL shl 2,L,4);
+     Segs.ES:=LongRec(L).Hi;
+     Regs.DI:=LongRec(L).Lo;
+    End;
+    $36:Begin
+     Regs.AX:=4;
+     Regs.CX:=512;
+     Regs.BX:=Word(DiskFree(Regs.DL) shr 11);
+     Regs.DX:=Word(DiskSize(Regs.DL) shr 11);
+    End;
+    $37:Case Regs.AL of
+     $00:Regs.DL:=Ord('/');
+    End;
+    $38:Case Regs.AL of
+     $00:Begin
+      WriteWord(Segs.DS,Regs.DX,2); { Ann‚e-Mois-Jour }
+      WriteWord(Segs.DS,Regs.DX+$02,Byte('$'));
+      WriteWord(Segs.DS,Regs.DX+$07,Byte(' '));
+      WriteWord(Segs.DS,Regs.DX+$09,Byte(','));
+      WriteWord(Segs.DS,Regs.DX+$0B,Byte('-'));
+      WriteWord(Segs.DS,Regs.DX+$0D,Byte(':'));
+      WriteByte(Segs.DS,Regs.DX+$0B,(1 shl 0)+(1 shl 1));
+      WriteWord(Segs.DS,Regs.DX+$10,2);
+      WriteWord(Segs.DS,Regs.DX+$11,1);
+      WriteWord(Segs.DS,Regs.DX+$12,0); { Base NIL }
+      WriteWord(Segs.DS,Regs.DX+$14,0); { Segment NIL }
+      WriteWord(Segs.DS,Regs.DX+$16,Byte(','));
+     End;
+    End;
+    $39:Begin
+     If(ReadOnlyMachine)Then Begin
+      Include(Flags.s,CF);
+      Regs.AX:=5;
+     End
+      Else
+     Begin
+      ReadBlock(Segs.DS,Regs.DX,Tampon,256);
+      {$I-}MkDir(StrPas(TamponChr));{$I+}
+      Regs.AX:=IOResult;
+      If Regs.AX=0 Then Exclude(Flags.s,CF)
+                   Else Include(Flags.s,CF);
+     End;
+    End;
+    $3A:Begin
+     If(ReadOnlyMachine)Then Begin
+      Include(Flags.s,CF);
+      Regs.AX:=5;
+     End
+      Else
+     Begin
+      ReadBlock(Segs.DS,Regs.DX,Tampon,256);
+      {$I-}RmDir(StrPas(TamponChr));{$I+}
+      Regs.AX:=IOResult;
+      If Regs.AX=0 Then Exclude(Flags.s,CF)
+                   Else Include(Flags.s,CF);
+     End;
+    End;
+    $3B:Begin
+     ReadBlock(Segs.DS,Regs.DX,Tampon,256);
+     {$I-}ChDir(StrPas(TamponChr));{$I+}
+     Regs.AX:=IOResult;
+     If Regs.AX=0 Then Exclude(Flags.s,CF)
+      Else
+     Begin
+      Include(Flags.s,CF);
+      Regs.AX:=2;
+     End;
+    End;
+    $4C:Begin
+     Fault:=sfEndProgram;
+    End;
+    $50:Begin { D‚finir PSP actif }
+     PSP:=Regs.BX;
+     Regs.AX:=0;
+     Exclude(Flags.s,CF);
+    End;
+   End;
+   $29:Write(Regs.AL); { Interruption 29h }
+   $2E:Begin { Interrupiton 2Eh }
+    ReadBlock(Segs.DS,Regs.SI,TamponStr,256);
+    Exec(TamponStr,'');
+   End;
+   $33:Case(Regs.AX)of { Interruption 33h }
+    1:{__ShowMousePtr};
+    2:{__HideMousePtr};
+   End;
+  End;
+ End
+  Else
+ Begin
+  Include(Flags.s,_IF);
+  PushWordStack(Segs.CS);
+  PushWordStack(IP);
+  Segs.CS:=LongRec(L).Hi;
+  IP:=LongRec(L).Lo;
+ End;
 End;
 
 Procedure S86CmpByte(Var Source:Byte;Dest:Byte);
@@ -1611,257 +1894,6 @@ Procedure S86AddCountString(Step:Byte;Source,Dest:Boolean);Begin
  Begin
   If(Source)Then S86AddWord(Regs.SI,Step);
   If(Dest)Then S86AddWord(Regs.DI,Step);
- End;
-End;
-
-Procedure S86CallInt(Num:Byte);
-Var
- L:LongInt;
- Tampon:Array[0..511]of Byte;
- TamponChr:Array[0..511]of Char Absolute Tampon;
- TamponStr:String Absolute Tampon;
- Ptr:Pointer;
- I:Word;
- Month,WDay,Hour,Minute,Second,Sec100:Word;
- BoolValue:Boolean;
- ByteReaded:Word;
-Begin
- Seek(Memory,Num shl 2);
- BlockRead(Memory,L,SizeOf(L),ByteReaded);
- If(L=Num+1)Then Begin
-  If(Debug)Then WriteLn('Interruption ',ByteHex2Str(Num),'h statique');
-  Case(Num)of
-   $10:Begin { Emulation de l'interruption vid‚o }
-    Case(Regs.AH)of
-     $02:Begin
-      GotoXY(Regs.DL+1,Regs.DH+1);
-     End;
-     $03:Begin
-      Regs.DL:=WhereX;
-      Regs.DH:=WhereY;
-     End;
-     $06:Begin
-      {WEScrollDn(Q.AppW,Q.Reg.CL,Q.Reg.CH,Q.Reg.DL,Q.Reg.DH);
-      WESetKr(Q.AppW,Q.Reg.BH);
-      WEBarSpcHor(Q.AppW,Q.Reg.CL,Q.Reg.CH,Q.Reg.DL);}
-     End;
-     $07:Begin
-      {WEScrollUp(Q.AppW,Q.Reg.CL,Q.Reg.CH,Q.Reg.DL,Q.Reg.DH);
-      WESetKr(Q.AppW,Q.Reg.BH);
-      WEBarSpcHor(Q.AppW,Q.Reg.CH,Q.Reg.CH,Q.Reg.DL);}
-     End;
-     $08:Begin
-      {Q.Reg.AX:=GetCube(WEGetRX1(Q.AppW)+Q.AppW.X,WEGetRY1(Q.AppW)+Q.AppW.Y);}
-     End;
-     $09:Begin
-      {WESetKr(Q.AppW,Q.Reg.BL);
-      WEBarTxtHor(Q.AppW,Q.AppW.X,Q.AppW.Y,Q.AppW.X+Q.Reg.CX,Chr(Q.Reg.AL));}
-     End;
-     $0A:Begin
-      {BarChrHor(WEGetRX1(Q.AppW)+Q.AppW.X,WEGetRY1(Q.AppW)+Q.AppW.Y,
-                WEGetRX1(Q.AppW)+Q.AppW.X+Q.Reg.CX,Chr(Q.Reg.AL));}
-     End;
-     $0C:Begin
-      {SetPixel((WEGetRX1(Q.AppW)shl 3)+Q.Reg.CX,
-               GetRawY(WEGetRX1(Q.AppW))+Q.Reg.DX,Q.Reg.AL);}
-     End;
-     $0D:Begin
-      {Q.Reg.AL:=GetPixel((WEGetRX1(Q.AppW)shl 3)+Q.Reg.CX,
-                         GetRawY(WEGetRX1(Q.AppW))+Q.Reg.DX);}
-     End;
-     $0E:Begin
-      Case(Regs.AL)of
-       $0D:WriteLn;
-       $0A:;
-       Else Begin
-        TextBackground(Regs.BL shr 4);
-        TextColor(Regs.BL and $F);
-        Write(Chr(Regs.AL));
-       End;
-      End;
-     End;
-     $0F:Begin
-      Regs.AL:=3;  { Num‚ro de mode vid‚o }
-      Regs.AH:=80; { Nombre de colonne }
-      Regs.BH:=0;  { Num‚ro de page courant }
-     End;
-     $1A:If Regs.AL=0Then Begin
-{      Case(GetVideoCardCat)of
-       cvnMDA,cvnHGC:Q.Reg.BL:=1;
-       cvnCGA:Q.Reg.BL:=2;
-       cvnEGA:If(ColorFound)Then Q.Reg.BL:=4
-                            Else Q.Reg.BL:=5;
-       cvnVGA,cvnSvga,cvnVESA:If(ColorFound)Then Q.Reg.BL:=8 Else Q.Reg.BL:=7;
-      End;}
-      Regs.BH:=0;
-      Regs.AL:=$1A;
-     End;
-    End;
-   End;
-   $13:Case(Regs.AH)of { Emulation de l'interruption vid‚o }
-    $02..$05,$07,$0A..$0B:Begin
-     If(Regs.AH)in[3,5,7,$B]Then ReadBlock(Segs.ES,Regs.BX,Tampon,512);
-     If(Regs.AH)in[2,4,$A]Then WriteBlock(Segs.ES,Regs.BX,Tampon,512);
-    End;
-   End;
-   $19:Fault:=sfHotBoot;
-   $18,$1B,$1C:;
-   $1D..$1F:Fault:=sfInvalidIntr;
-   $20:Fault:=sfEndProgram;
-   $21:Case(Regs.AH)of
-    $00:Fault:=sfEndProgram;
-    $01:Begin
-     Regs.AL:=Byte(ReadKey);
-     Write(Char(Regs.AL));
-    End;
-    $02:Write(Chr(Regs.DL));
-    $07,$08:Regs.AL:=Byte(ReadKey);
-    $09:Begin
-     ReadBlock(Segs.DS,Regs.DX,Tampon,512);
-     For I:=0to 511do Begin
-      Case TamponChr[I]of
-       '$':Break;
-       #13:WriteLn;
-       #10:;
-       Else Write(TamponChr[I]);
-      End;
-     End;
-    End;
-    $0A:Begin
-     ReadLn(TamponStr);
-     ReadBlock(Segs.DS,Regs.DX+1,ByteReaded,1);
-     If ByteReaded<Length(TamponStr)Then TamponStr[0]:=Char(ByteReaded);
-     WriteBlock(Segs.DS,Regs.DX+1,TamponStr,Length(TamponStr)+1);
-    End;
-    $0B:Begin { Demande l'‚tat de la console }
-     If(Keypressed)Then Regs.AL:=255
-                   Else Regs.AL:=0;
-    End;
-    $0C:Begin
-     While(Keypressed)do ReadKey;
-     Case Regs.AL of
-      $01:Begin
-       Regs.AL:=Byte(ReadKey);
-       Write(Char(Regs.AL));
-      End;
-      $02:Write(Chr(Regs.DL));
-      $07,$08:Regs.AL:=Byte(ReadKey);
-      $0A:Begin
-       ReadLn(TamponStr);
-       ReadBlock(Segs.DS,Regs.DX+1,ByteReaded,1);
-       If ByteReaded<Length(TamponStr)Then TamponStr[0]:=Char(ByteReaded);
-       WriteBlock(Segs.DS,Regs.DX+1,TamponStr,Length(TamponStr)+1);
-      End;
-     End;
-    End;
-    $0E:Begin { S‚lectionne un disque (Select Disk) }
-     {$I-}ChDir(Chr(Regs.DL+65)+':');{$I+}
-     If IoResult<>0Then Regs.AL:=$FF
-                   Else Regs.AL:=0;
-    End;
-    $19:Begin
-     Regs.AL:=Ord(GetCurrentDisk)-Ord('A');
-    End;
-    $25:Begin { Fixe une adresse d'interruption }
-     LongRec(L).Hi:=Segs.DS;
-     LongRec(L).Lo:=Regs.DX;
-     WriteBlock(0,Regs.AL shl 2,L,4);
-    End;
-    $2A:Begin
-     GetDate(Regs.CX,Month,Regs.DX,WDay);
-     Regs.DH:=Month;
-     Regs.AL:=WDay;
-    End;
-    $2C:Begin
-     GetTime(Hour,Minute,Second,Sec100);
-     Regs.CH:=Hour;
-     Regs.CL:=Minute;
-     Regs.DH:=Second;
-     Regs.DL:=Sec100;
-    End;
-    $2E:SetVerify(Boolean(Regs.AL));
-    $30:Begin { Demande la version DOS }
-     Regs.AX:=DOSVersion;
-     Regs.BH:=0 {OEMVersion};
-    End;
-    $33:Case(Regs.AL)of
-     $00:Begin
-      GetCBreak(BoolValue);
-      Regs.DL:=Byte(BoolValue);
-     End;
-     $01:SetCBreak(Boolean(Regs.DL));
-     $05:Regs.DX:=0 {Unit‚ de d‚marrage};
-     $06:Begin
-      Regs.AL:=$FF;
-      Regs.BX:=DOSVersion;
-      Regs.DL:=0;
-      Regs.DH:=(1 shl 3); { DOS en ROM }
-     End;
-    End;
-    $35:Begin { Demande une adresse d'interruption }
-     ReadBlock(0,Regs.AL shl 2,L,4);
-     Segs.ES:=LongRec(L).Hi;
-     Regs.DI:=LongRec(L).Lo;
-    End;
-    $36:Begin
-     Regs.AX:=4;
-     Regs.CX:=512;
-     Regs.BX:=Word(DiskFree(Regs.DL) shr 11);
-     Regs.DX:=Word(DiskSize(Regs.DL) shr 11);
-    End;
-    $37:Case Regs.AL of
-     $00:Regs.DL:=Ord('/');
-    End;
-    $38:Case Regs.AL of
-     $00:Begin
-      WriteWord(Segs.DS,Regs.DX,2); { Ann‚e-Mois-Jour }
-      WriteWord(Segs.DS,Regs.DX+$02,Byte('$'));
-      WriteWord(Segs.DS,Regs.DX+$07,Byte(' '));
-      WriteWord(Segs.DS,Regs.DX+$09,Byte(','));
-      WriteWord(Segs.DS,Regs.DX+$0B,Byte('-'));
-      WriteWord(Segs.DS,Regs.DX+$0D,Byte(':'));
-      WriteByte(Segs.DS,Regs.DX+$0B,(1 shl 0)+(1 shl 1));
-      WriteWord(Segs.DS,Regs.DX+$10,2);
-      WriteWord(Segs.DS,Regs.DX+$11,1);
-      WriteWord(Segs.DS,Regs.DX+$12,0); { Base NIL }
-      WriteWord(Segs.DS,Regs.DX+$14,0); { Segment NIL }
-      WriteWord(Segs.DS,Regs.DX+$16,Byte(','));
-     End;
-    End;
-    $39:Begin
-     ReadBlock(Segs.DS,Regs.DX,Tampon,256);
-     {$I-}MkDir(StrPas(TamponChr));{$I+}
-     Regs.AX:=IOResult;
-     If Regs.AX=0 Then Exclude(Flags.s,CF)
-                  Else Include(Flags.s,CF);
-    End;
-    $4C:Begin
-     Fault:=sfEndProgram;
-    End;
-    $50:Begin { D‚finir PSP actif }
-     PSP:=Regs.BX;
-     Regs.AX:=0;
-     Exclude(Flags.s,CF);
-    End;
-   End;
-   $29:Write(Regs.AL); { Interruption 29h }
-   $2E:Begin { Interrupiton 2Eh }
-    ReadBlock(Segs.DS,Regs.SI,TamponStr,256);
-    Exec(TamponStr,'');
-   End;
-   $33:Case(Regs.AX)of { Interruption 33h }
-    1:{__ShowMousePtr};
-    2:{__HideMousePtr};
-   End;
-  End;
- End
-  Else
- Begin
-  Include(Flags.s,_IF);
-  PushWordStack(Segs.CS);
-  PushWordStack(IP);
-  Segs.CS:=LongRec(L).Hi;
-  IP:=LongRec(L).Lo;
  End;
 End;
 
@@ -3553,6 +3585,7 @@ BEGIN
   WriteLn(' /PCAT                 Simulation du micro-ordinateur PC AT');
   WriteLn(' /PCJR                 Simulation du micro-ordinateur PC Junior');
   WriteLn(' /PCXT                 Simulation du micro-ordinateur PC XT');
+  WriteLn(' /READONLY             Interdit la modification des donn‚es sur disque');
   WriteLn(' /SETALC               Active le support de l''instruction SETALC');
   WriteLn(' /WANG                 Simulation du micro-ordinateur WANG');
  End
@@ -3561,6 +3594,7 @@ BEGIN
   Option:=[];
   Debug:=False;
   Verbose:=False;
+  ReadOnlyMachine:=False;
   FileName:='';
   ModelComputer:=mcIBMPC;
   CPU:=cpu8086;
@@ -3609,6 +3643,7 @@ BEGIN
    If(StrToUpper(ParamStr(I))='/PCJR')or
      (StrToUpper(ParamStr(I))='/PCJUNIOR')Then ModelComputer:=mcPCJunior Else
    If StrToUpper(ParamStr(I))='/PCXT'Then ModelComputer:=mcPC_XT Else
+   If StrToUpper(ParamStr(I))='/READONLY'Then ReadOnlyMachine:=True Else
    If StrToUpper(ParamStr(I))='/SETALC'Then Include(Option,soSETALC) Else
    If StrToUpper(ParamStr(I))='/VERBOSE'Then Verbose:=True Else
    If StrToUpper(ParamStr(I))='/WANG'Then ModelComputer:=mcWang
