@@ -6,6 +6,8 @@
 
 Program RUNIBMPC;
 
+{$A-}
+
 Uses Strings,Crt,DOS;
 
 Const
@@ -70,6 +72,45 @@ Const
  opXChg=$86;
 
 Type
+  {Structure de fichier .EXE}
+ HeaderEXE=Record
+  Sign:Array[0..1]of Char; {  0 - Signature 'MZ' }
+  LenN511:Word;            {  2 - Longueur Module 512 (Et binaire 511) }
+  LenShr9:Word;            {  4 - Longueur Diviser 512 (Shift Right 9) }
+  NmSeg:Word;              {  6 - Nombre de segment Ö adapter }
+  SizeOfHeader:Word;       {  8 - Taille de l'entàte en paragraphe }
+  MinParagraph:Word;       { 10 - Nombre minimal de paragraphe }
+  MaxParagraph:Word;       { 12 - Nombre maximal de paragraphe }
+  OfsLoadStack:Word;       { 14 - DÇplacement de chargement de module dans la pile }
+  SizeOfStack:Word;        { 16 - Taille de la pile (SP) }
+  CheckSum:Word;           { 18 - VÇrificateur de l'entàte du fichier ex,cutable }
+  IP:Word;                 { 20 - Point d'entrÇe d'instruction }
+  OfsLoad:Word;            { 22 - DÇplacement de chargement de module dans le code }
+  AdrExeTable:Word;        { 24 - Adresse de la table de relogement du programme EXE }
+  NmOvr:Word;              { 26 - NumÇro de recouvrement (0 pour le programme principal) }
+ End;
+
+ PSPRecord=Record Case Byte of
+  0:(Buffer:Array[Byte]of Byte);
+  1:(Int20h:Word;
+     EndSegPrg:Word;
+     ReservedA:Byte;
+     CallDOS:Array[0..4]of Byte;
+     Int22h:Pointer;
+     Int23h:Pointer;
+     Int24h:Pointer;
+     ParentSeg:Word;
+     Handle:Array[0..19]of Byte;
+     EnvSeg:Word;
+     ReservedB:LongInt;
+     LenHandle:Word;
+     HandlePtrOfs,HandlePtrSeg:Word;
+     ReservedC:Array[0..22]of Byte;
+     Int21h:Word;
+     RetF:Byte
+     );
+ End;
+
  LongRec=Record
   Lo,Hi:Word;
  End;
@@ -147,6 +188,16 @@ Begin
  T:=A;
  A:=B;
  B:=T;
+End;
+
+Function Path2Ext(S:String):String;
+Var
+ D:DirStr;
+ N:NameStr;
+ E:ExtStr;
+Begin
+ FSplit(S,D,N,E);
+ Path2Ext:=E;
 End;
 
 Function GetCurrentDisk:Char;
@@ -231,6 +282,14 @@ Begin
  BlockWrite(Memory,Tbl,SizeOf(Tbl),ByteWrited);
 End;
 
+Procedure ReadAbsBlock(Addr:LongInt;Var Buffer;SizeOf:Word);
+Var
+ ByteReaded:Word;
+Begin
+ Seek(Memory,Addr);
+ BlockRead(Memory,Buffer,SizeOf,ByteReaded);
+End;
+
 Procedure ReadBlock(Seg,Ofs:Word;Var Buffer;SizeOf:Word);
 Var
  Addr:LongInt;
@@ -247,6 +306,15 @@ Var
 Begin
  ReadBlock(Seg,Ofs,X,SizeOf(X));
  ReadWord:=X;
+End;
+
+Procedure WriteAbsBlock(Addr:LongInt;Var Buffer;SizeOf:Word);
+Var
+ ByteWrited:Word;
+ PBuffer:^TByte Absolute Buffer;
+Begin
+ Seek(Memory,Addr);
+ BlockWrite(Memory,Buffer,SizeOf,ByteWrited);
 End;
 
 Procedure WriteBlock(Seg,Ofs:Word;Var Buffer;SizeOf:Word);
@@ -380,71 +448,6 @@ Begin
    S:=#$FE;
    WriteBlock($FFFF,$0E,S,Length(S));
   End;
- End;
-End;
-
-Procedure S86LoadCom(Const FileName:String);
-Var
- Buffer:Pointer;
- Handle:File;
- Size:LongInt;
- X,Y,MX:Byte;
- PSP:Record Case Byte of
-  0:(Buffer:Array[Byte]of Byte);
-  1:(Int20h:Word;
-     EndSegPrg:Word;
-     ReservedA:Byte;
-     CallDOS:Array[0..4]of Byte;
-     Int22h:Pointer;
-     Int23h:Pointer;
-     Int24h:Pointer;
-     ParentSeg:Word;
-     Handle:Array[0..19]of Byte;
-     EnvSeg:Word;
-     ReservedB:LongInt;
-     LenHandle:Word;
-     HandlePtrOfs,HandlePtrSeg:Word;
-     ReservedC:Array[0..22]of Byte;
-     Int21h:Word;
-     RetF:Byte
-     );
- End;
- ByteWrited,ByteReaded:Word;
-Begin
- {$I-}Assign(Handle,FileName);
- Reset(Handle,1);{$I+}
- If(IoResult=0)Then Begin
-  {DOSVersion:=$0005;} { Version 5.0 }
-  Segs.CS:=$0060;
-  Segs.DS:=Segs.CS;
-  Segs.ES:=Segs.CS;
-  Segs.SS:=Segs.CS;
-  Regs.SP:=$FFFE;
-  IP:=$100;
-   { êcriture des donnÇes du PSP }
-  FillChar(PSP,SizeOf(PSP),0);
-  PSP.Int20h:=$20CD;
-  PSP.EndSegPrg:=$9FFF;
-  PSP.ParentSeg:=$52;
-  PSP.EnvSeg:=$51;
-  PSP.LenHandle:=20;
-  PSP.HandlePtrOfs:=$18;
-  PSP.HandlePtrSeg:=Segs.CS;
-  PSP.Int21h:=$21CD;
-  PSP.RETF:=$CB;
-  WriteBlock(Segs.CS,0,PSP.Buffer,$100);
-  Size:=FileSize(Handle);
-  GetMem(Buffer,Size);
-  If(Buffer<>NIL)Then Begin
-   Seek(Handle,0);
-   BlockRead(Handle,Buffer^,Size,ByteReaded);
-   WriteBlock(Segs.CS,IP,Buffer^,Size);
-   If(Verbose)Then WriteLn('Fichier chargÇ en mÇmoire');
-  End
-   Else
-  If(Verbose)Then WriteLn('Manque de mÇmoire pour charger le programme.');
-  FreeMem(Buffer,Size);
-  Close(Handle);
  End;
 End;
 
@@ -2196,7 +2199,7 @@ End;
 
 Procedure WriteValue(Value:Word;HeadLen:Byte;IsWord:Boolean;Operand:Byte);
 Var
- Int:Integer;
+ Int:LongInt;
  NextCode:Byte;
  Ofs:Word;
  IC:Byte;
@@ -2290,6 +2293,7 @@ Begin
     3:Int:=Regs.BP+Regs.DI;
     4:Int:=Regs.SI;
     5:Int:=Regs.DI;
+    6:Int:=0;
     7:Int:=Regs.BX;
    End;
    Ofs:=Int;
@@ -2562,6 +2566,9 @@ Restart:
           'BP=',HexWord2Str(Regs.BP),', ',
           'SI=',HexWord2Str(Regs.SI),', ',
           'DI=',HexWord2Str(Regs.DI));
+  WriteLn('DS=',HexWord2Str(Segs.DS),', ',
+          'ES=',HexWord2Str(Segs.ES),', ',
+          'SS=',HexWord2Str(Segs.SS));
   Write('Flags=(');
   If(CF in Flags.s)Then Write('CF ');
   If(PF in Flags.s)Then Write('PF ');
@@ -3773,6 +3780,119 @@ Procedure Done;Begin
  Erase(Memory);{$I+}
 End;
 
+Procedure S86LoadCom(Const FileName:String);
+Var
+ PSP:PSPRecord;
+ Buffer:Pointer;
+ Handle:File;
+ Size:LongInt;
+ X,Y,MX:Byte;
+ ByteWrited,ByteReaded:Word;
+Begin
+ {$I-}Assign(Handle,FileName);
+ Reset(Handle,1);{$I+}
+ If(IoResult=0)Then Begin
+  {DOSVersion:=$0005;} { Version 5.0 }
+  Segs.CS:=$0060;
+  Segs.DS:=Segs.CS;
+  Segs.ES:=Segs.CS;
+  Segs.SS:=Segs.CS;
+  Regs.SP:=$FFFE;
+  Regs.BP:=$091C;
+  IP:=$100;
+   { êcriture des donnÇes du PSP }
+  FillChar(PSP,SizeOf(PSP),0);
+  PSP.Int20h:=$20CD;
+  PSP.EndSegPrg:=$9FFF;
+  PSP.ParentSeg:=$52;
+  PSP.EnvSeg:=$51;
+  PSP.LenHandle:=20;
+  PSP.HandlePtrOfs:=$18;
+  PSP.HandlePtrSeg:=Segs.CS;
+  PSP.Int21h:=$21CD;
+  PSP.RETF:=$CB;
+  WriteBlock(Segs.CS,0,PSP.Buffer,$100);
+  Size:=FileSize(Handle);
+  GetMem(Buffer,Size);
+  If(Buffer<>NIL)Then Begin
+   Seek(Handle,0);
+   BlockRead(Handle,Buffer^,Size,ByteReaded);
+   WriteBlock(Segs.CS,IP,Buffer^,Size);
+   If(Verbose)Then WriteLn('Fichier chargÇ en mÇmoire');
+  End
+   Else
+  If(Verbose)Then WriteLn('Manque de mÇmoire pour charger le programme.');
+  FreeMem(Buffer,Size);
+  Close(Handle);
+ End;
+End;
+
+Procedure S86LoadExe(Const FileName:String);
+Var
+ HeadSize,Addr,Pos,I,LoadSeg:LongInt;
+ N:LongInt;
+ PSPSeg,ROff,RSeg:Word;
+ PSP:PSPRecord;
+ Handle:File;
+ ByteReaded:Word;
+ Exe:HeaderEXE;
+ Buffer:Array[0..255]of Byte;
+ Reloc:Array[0..1]of Word;
+Begin
+{$I-}Assign(Handle,FileName);
+ Reset(Handle,1);{$I+}
+ If(IoResult=0)Then Begin
+  Seek(Handle,0);
+  BlockRead(Handle,Exe,SizeOf(Exe),ByteReaded);
+  If Not((Exe.Sign[0]='M')and(Exe.Sign[1]='Z'))Then Begin
+   WriteLn('Format d''exÇcutable invalide !');
+   Halt(10);
+  End;
+  HeadSize:=Exe.SizeOfHeader*16;
+  PSPSeg:=$0060;
+  LoadSeg:=PSPSeg+17;
+  IP:=Exe.IP;
+  Segs.CS:=LoadSeg+Exe.OfsLoad;
+  Segs.DS:=PSPSeg+1;
+  Segs.ES:=PSPSeg+1;
+  Segs.SS:=LoadSeg+Exe.OfsLoadStack;
+  Regs.SP:=Exe.SizeOfStack;
+  Regs.BP:=$091C;
+   { êcriture des donnÇes du PSP }
+  FillChar(PSP,SizeOf(PSP),0);
+  PSP.Int20h:=$20CD;
+  PSP.EndSegPrg:=$9FFF;
+  PSP.ParentSeg:=$52;
+  PSP.EnvSeg:=$51;
+  PSP.LenHandle:=20;
+  PSP.HandlePtrOfs:=$18;
+  PSP.HandlePtrSeg:=Segs.CS;
+  PSP.Int21h:=$21CD;
+  PSP.RETF:=$CB;
+  WriteBlock(PSPSeg,0,PSP.Buffer,$100);
+  Addr:=(Segs.CS shl 4)+Exe.IP;
+  Seek(Handle,HeadSize+Exe.IP);
+  While Not EOF(Handle)do Begin
+   BlockRead(Handle,Buffer,SizeOf(Buffer),ByteReaded);
+   WriteAbsBlock(Addr,Buffer,ByteReaded);
+   Inc(Addr,ByteReaded);
+  End;
+   { Relogement des donnÇes}
+  Seek(Handle,Exe.AdrExeTable);
+  For I:=1 to Exe.NmSeg do Begin
+   BlockRead(Handle,Reloc,SizeOf(Reloc),ByteReaded);
+   If ByteReaded<>SizeOf(Reloc) Then Break;
+   ROff:=Reloc[0];
+   RSeg:=LoadSeg+Reloc[1];
+   Pos:=ROff+16*RSeg;
+   ReadAbsBlock(Pos,N,2);
+   N:=N+LoadSeg;
+   WriteAbsBlock(Pos,N,2);
+  End;
+  Close(Handle);
+ End;
+End;
+
 BEGIN
  {$IFDEF FPC}
   {$IFDEF WINDOWS}
@@ -3867,8 +3987,15 @@ BEGIN
   End;
   If FileName<>''Then Begin
    InitComputer;
-   If(Verbose)Then WriteLn('Chargement du fichier COM Æ',FileName,'Ø');
-   S86LoadCom(FileName);
+   If StrToUpper(Path2Ext(FileName))='.COM'Then Begin
+    If(Verbose)Then WriteLn('Chargement du fichier COM Æ',FileName,'Ø');
+    S86LoadCom(FileName);
+   End
+    Else
+   Begin
+    If(Verbose)Then WriteLn('Chargement du fichier EXE Æ',FileName,'Ø');
+    S86LoadExe(FileName);
+   End;
    If(Verbose)Then WriteLn('ExÇcution du code');
    Repeat
     Run;
